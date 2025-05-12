@@ -365,7 +365,7 @@ GIS tasks often include:
 - Handling cases where the file name or attribute field is unknown by using dedicated scanning or listing tools (e.g., "list_fields", "scan_workspace_directory_for_gis_files", "scan_external_directory_for_gis_files")
 - Verify the availability of the data in the workspace or external files usind appropriate tool before using the arcgis search tool. Some data may be locally available and some data may need to be fetched from arcgis online. 
 - Not all data is available online so IT IS CRITICAL that you check If required data already exists locally and skip searching for it on ArcGIS Online if it does.
-     
+          
 [Critical Instruction: Do Not Assume Inputs]
 
 Attribute Fields: If a step requires an attribute field (for example, to extract "atm" values from a financial dataset) but the correct field name is not explicitly provided, do not assume it. Instead, include a step to retrieve the field names using the "list_fields" tool.
@@ -413,8 +413,11 @@ Missing Parameters: If any required parameter is unclear or missing, do not gues
    - Indicate in the description that if the data is already available in the workspace or external files, it should be used instead of searching for it on ArcGIS Online and calling the arcgis search tool can be skipped.
    - Create the search query to find the required data. Use proper filters to narrow down the search results.
    - Use specific keywords or phrases in the query (e.g., 'california population density').
+   - Do not use the owner parameter unless the user is looking for specific content from a specific owner.
    - Searching using the title and snippet fields often yields the best results if described properly. So use title and snippet parameters to narrow down the search results, do not only use the query.
+   - Always leave the Base query as an empty string and use the title to serch for specific items.
    - Only use Feature Service (vector), and Image Service (raster) item types for the search.
+   - Do not modify the max_results parameter unless explicitly requested.
    - Use the url from the tool output as input to the geoprocessing tools like buffer, clip, raster calculator, etc.
    - Add placeholder indicating a url will be passed as the input data for the geoprocessing tool so that executor knows that it needs to identify the correct dataset and pass the url here.
 5. **Plan Geoprocessing Steps:** Identify necessary steps such as:
@@ -518,9 +521,12 @@ For each step in the plan, perform the following checks:
    - Verify the availability of the data in the workspace or external files using appropriate tools before using the arcgis search tool. Not all data is available online so it is crucial that you check If required data already exists locally skip searching for it on ArcGIS Online.
    - Indicate in the description that if the data is already available in the workspace or external files, it should be used instead of searching for it on ArcGIS Online and calling the arcgis search tool can be skipped.  
    - Create the search query to find the required data. Use proper filters to narrow down the search results.
+   - Always leave the Base query as an empty string and use the title to serch for specific items.
    - Ask if the query and filters are being used properly in the plan to search for the required data in ArcGIS Online. Question the fact whether the search query is too broad or too narrow.
    - Searching using the title and snippet fields often yields the best results if described properly. So use title and snippet parameters to narrow down the search results.
    - Only use Feature Service (vector), and Image Service (raster) item types for the search.
+   - Do not modify the max_results parameter unless explicitly requested.
+   - Do not use the owner parameter unless the user is looking for specific content from a specific owner.
    - Use the url from the tool output as input to the geoprocessing tools like buffer, clip, raster calculator, etc.
    - Add placeholder indicating a url will be passed as the input data for the geoprocessing tool so that executor knows that it needs to pass a url here.
    - Check if the executor is being indicated to choose the correct data from the output of the arcgis search tool call to solve the user request.
@@ -572,7 +578,9 @@ You are a GIS task executor with the ability to execute multiple tools in sequen
    - If the search result did not return a dataset that we needed, make another search call for the same data with a different query and filters to find the required data.
    - Keep modifying the query and filters until you find the required data.
    - If there are more than one data requirements then make sure to find the required data for each of them.
-
+   - If the Base query is not giving relavant results, next time don't use it, set as an empty string and use the title to search for specific items instead.
+   - Use the data that most closely matches the user's request.
+     
 5. CRITICALLY IMPORTANT: After each tool call, you MUST CONTINUE to the next step in the plan. Do not wait for confirmation to proceed.
 
 6. Only after ALL steps have been executed, provide a final summary of what was accomplished.
@@ -889,10 +897,10 @@ class GISAgent:
                 self.response_queue.put(iteration_header)
 
                 # Planning Phase
-                planning_header = "\n1. PLANNING PHASE\n" + "="*40
-                print(planning_header)
+                # planning_header = "\n1. PLANNING PHASE\n" + "="*40
+                # print(planning_header)
                 self.response_queue.put("Planning...\n")
-                self.response_queue.put(planning_header)
+                # self.response_queue.put(planning_header)
                 
                 planning_input = {
                     "input": user_input if current_iteration == 0 
@@ -923,10 +931,10 @@ class GISAgent:
                 time.sleep(2)  # Brief pause before verification
 
                 # Verification Phase
-                verification_header = "\n2. VERIFICATION PHASE\n" + "="*40
-                print(verification_header)
+                # verification_header = "\n2. VERIFICATION PHASE\n" + "="*40
+                # print(verification_header)
                 self.response_queue.put("Verifying...\n")
-                self.response_queue.put(verification_header)
+                # self.response_queue.put(verification_header)
                 
                 verification_input = {
                     "plan": plan,
@@ -996,7 +1004,7 @@ class GISAgent:
                 return ""
             
             # Execution Phase
-            print("\n3. EXECUTION PHASE")
+            # print("\n3. EXECUTION PHASE")
             
             # Pretty print the plan JSON for better readability
             try:
@@ -1418,25 +1426,28 @@ class GISGUI:
         self.chat_notebook.add(self.detailed_tab, text="Detailed Output")
         
         # Chat area (simplified) in the Chat tab
-        self.response_area = scrolledtext.ScrolledText(self.simple_chat_tab, wrap=tk.WORD, width=60, height=20, font=("Segoe UI", 10))
-        self.response_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Use Segoe UI as the base font, ensure all text is black by default, add padding inside the text area
+        self.response_area = scrolledtext.ScrolledText(self.simple_chat_tab, wrap=tk.WORD, width=60, height=20, font=("Segoe UI", 10), foreground="black", padx=5, pady=5)
+        self.response_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5) # Keep outer padding as well
         self.response_area.config(state="disabled")
-        self.response_area.tag_configure("user", foreground="#007acc", font=("Segoe UI", 10, "bold"))
-        self.response_area.tag_configure("agent", foreground="#990000", font=("Segoe UI", 10, "bold"))
-        self.response_area.tag_configure("info", foreground="#888888", font=("Segoe UI", 9, "italic"))
-        self.response_area.tag_configure("error", foreground="#cc0000", font=("Segoe UI", 10, "bold"))
+        # Configure tags with black foreground and consistent fonts
+        self.response_area.tag_configure("user", foreground="black", font=("Segoe UI", 10, "bold"))
+        self.response_area.tag_configure("agent", foreground="black", font=("Segoe UI", 10, "bold"))
+        self.response_area.tag_configure("info", foreground="black", font=("Segoe UI", 10, "italic")) # Regular weight for info
+        self.response_area.tag_configure("error", foreground="black", font=("Segoe UI", 10, "bold")) # Keep error bold, but black
         
         # Detailed output area in the Details tab
-        self.detailed_area = scrolledtext.ScrolledText(self.detailed_tab, wrap=tk.WORD, width=60, height=20, font=("Consolas", 9))
-        self.detailed_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Use Segoe UI as the base font, ensure all text is black by default, add padding inside the text area
+        self.detailed_area = scrolledtext.ScrolledText(self.detailed_tab, wrap=tk.WORD, width=60, height=20, font=("Segoe UI", 10), foreground="black", padx=5, pady=5)
+        self.detailed_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5) # Keep outer padding as well
         self.detailed_area.config(state="disabled")
-        # Configure tags for different types of output
-        self.detailed_area.tag_configure("planner", foreground="#0066cc", font=("Consolas", 9, "bold"))
-        self.detailed_area.tag_configure("verifier", foreground="#9933cc", font=("Consolas", 9, "bold"))
-        self.detailed_area.tag_configure("executor", foreground="#cc6600", font=("Consolas", 9, "bold"))
-        self.detailed_area.tag_configure("tool", foreground="#009933", font=("Consolas", 9))
-        self.detailed_area.tag_configure("error", foreground="#cc0000", font=("Consolas", 9, "bold"))
-        self.detailed_area.tag_configure("header", foreground="#000000", background="#f0f0f0", font=("Consolas", 10, "bold"))
+        # Configure tags for different types of output with black foreground and Segoe UI font
+        self.detailed_area.tag_configure("planner", foreground="black", font=("Segoe UI", 10, "bold"))
+        self.detailed_area.tag_configure("verifier", foreground="black", font=("Segoe UI", 10, "bold"))
+        self.detailed_area.tag_configure("executor", foreground="black", font=("Segoe UI", 10, "bold"))
+        self.detailed_area.tag_configure("tool", foreground="black", font=("Segoe UI", 10)) # Regular weight for tool output
+        self.detailed_area.tag_configure("error", foreground="black", font=("Segoe UI", 10, "bold")) # Keep error bold, but black
+        self.detailed_area.tag_configure("header", foreground="black", background="#f0f0f0", font=("Segoe UI", 12, "bold")) # Larger, bold header
         
         # Status indicator frame
         self.status_frame = ttk.Frame(self.chat_frame)
@@ -1877,9 +1888,9 @@ class GISGUI:
         self.update_response_area(f"You: {request}", "chat", "user")
         
         # Update detailed area with a header for the query
-        self.update_response_area("\n" + "="*80, "detail", "header")
+        self.update_response_area("\n" + "="*47, "detail", "header")
         self.update_response_area(f"📝 NEW QUERY: {request}", "detail", "header")
-        self.update_response_area("="*80 + "\n", "detail", "header")
+        self.update_response_area("="*47 + "\n", "detail", "header")
         
         # Start the agent thread if it's not already running
         self.start_agent_thread()
@@ -1915,23 +1926,21 @@ class GISGUI:
             # Insert the message
             target_area.config(state=tk.NORMAL)
             
-            # Apply different formats based on message type
+            # Apply different formats based on message type using configured tags
             if message_type == "user":
-                target_area.insert(tk.END, message + "\n\n", "user")
+                target_area.insert(tk.END, message + "\n\n", ("user",))
             elif message_type == "agent":
-                # Format agent messages with some styling
-                target_area.insert(tk.END, message + "\n\n", "agent")
+                target_area.insert(tk.END, message + "\n\n", ("agent",))
             elif message_type == "error":
-                target_area.insert(tk.END, message + "\n\n", "error")
-            elif message_type in ["planner", "verifier", "executor"]:
-                # Format different agent components with specific styling
-                target_area.insert(tk.END, message + "\n", message_type)
-            elif message_type == "header":
-                # Format headers with distinct styling
-                target_area.insert(tk.END, message + "\n", "header")
-            else:
-                # Default formatting for information messages
-                target_area.insert(tk.END, message + "\n", "info")
+                # Use error tag for both chat and detail areas
+                target_area.insert(tk.END, message + "\n\n", ("error",))
+            elif message_type in ["planner", "verifier", "executor", "tool", "header"]:
+                 # These tags are primarily for the detailed_area
+                 # Add newline consistently
+                 target_area.insert(tk.END, message + "\n", (message_type,))
+            else: # Default is 'info'
+                # Use info tag for both chat and detail areas
+                target_area.insert(tk.END, message + "\n", ("info",))
             
             # Scroll to the end
             target_area.see(tk.END)

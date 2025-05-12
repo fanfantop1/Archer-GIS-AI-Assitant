@@ -1,0 +1,345 @@
+Appendix C.1 – Case Study 1: Multi-Index Analysis for Delhi Using Landsat Imagery
+
+You: Generate NDVI, SAVI, EVI, NDWI, and NDBI for Delhi for 26th March 2025.
+--- ITERATION 1 ---
+
+--- PLANNING PHASE ---
+GENERATED PLAN:
+[
+  {
+    "tool": "scan_workspace_directory_for_gis_files",
+    "input": {
+      "workspace": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb"
+    },
+    "description": "Scan the workspace to check for an existing Delhi boundary feature class or pre-downloaded/pre-processed Landsat bands for the specified date."
+  },
+  {
+    "tool": "search_arcgis_online_content",
+    "input": {
+      "base_query": "",
+      "title": "Delhi administrative boundary",
+      "item_type": "Feature Service",
+      "snippet": "Administrative boundary of Delhi, India",
+      "max_results": 1
+    },
+    "description": "Search for a Delhi administrative boundary feature service on ArcGIS Online. This will be used for clipping the imagery. If a suitable boundary is found in the workspace scan, this step might be skipped or its output ignored."
+  },
+  {
+    "tool": "download_landsat_tool",
+    "input": {
+      "output_directory": "D:/masters_project/ArcGIS_AI/Archer Test/landsat_delhi_20250326_raw",
+      "start_date": "2025-03-26",
+      "end_date": "2025-03-26",
+      "landsat_sensors": [
+        "L8",
+        "L9"
+      ],
+      "bands": [
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6"
+      ],
+      "bounding_box": "76.8,28.4,77.3,28.9",
+      "max_cloud_cover": 20.0,
+      "delete_archive": true
+    },
+    "description": "Download Landsat 8/9 Collection 2 Level-2 bands (Blue, Green, Red, NIR, SWIR1) for Delhi for March 26, 2025. The bounding box is an approximation for Delhi and may need adjustment by the executor."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "path_to_downloaded_B2_to_be_identified_by_executor"
+      ],
+      "expression": "(r1 * 0.0000275) - 0.2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B2_SR_temp"
+    },
+    "description": "Rescale the downloaded Blue band (B2) to Surface Reflectance. The input path is the B2 file from the 'landsat_delhi_20250326_raw' directory."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "path_to_downloaded_B3_to_be_identified_by_executor"
+      ],
+      "expression": "(r1 * 0.0000275) - 0.2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B3_SR_temp"
+    },
+    "description": "Rescale the downloaded Green band (B3) to Surface Reflectance. The input path is the B3 file from the 'landsat_delhi_20250326_raw' directory."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "path_to_downloaded_B4_to_be_identified_by_executor"
+      ],
+      "expression": "(r1 * 0.0000275) - 0.2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B4_SR_temp"
+    },
+    "description": "Rescale the downloaded Red band (B4) to Surface Reflectance. The input path is the B4 file from the 'landsat_delhi_20250326_raw' directory."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "path_to_downloaded_B5_to_be_identified_by_executor"
+      ],
+      "expression": "(r1 * 0.0000275) - 0.2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_SR_temp"
+    },
+    "description": "Rescale the downloaded NIR band (B5) to Surface Reflectance. The input path is the B5 file from the 'landsat_delhi_20250326_raw' directory."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "path_to_downloaded_B6_to_be_identified_by_executor"
+      ],
+      "expression": "(r1 * 0.0000275) - 0.2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B6_SR_temp"
+    },
+    "description": "Rescale the downloaded SWIR1 band (B6) to Surface Reflectance. The input path is the B6 file from the 'landsat_delhi_20250326_raw' directory."
+  },
+  {
+    "tool": "extract_by_mask",
+    "input": {
+      "in_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B2_SR_temp",
+      "in_mask_data": "delhi_boundary_url_or_path_from_step_1_or_2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B2_Delhi_SR"
+    },
+    "description": "Clip the rescaled Blue band to the Delhi boundary. The mask is from the workspace or ArcGIS Online search."
+  },
+  {
+    "tool": "extract_by_mask",
+    "input": {
+      "in_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B3_SR_temp",
+      "in_mask_data": "delhi_boundary_url_or_path_from_step_1_or_2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B3_Delhi_SR"
+    },
+    "description": "Clip the rescaled Green band to the Delhi boundary."
+  },
+  {
+    "tool": "extract_by_mask",
+    "input": {
+      "in_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B4_SR_temp",
+      "in_mask_data": "delhi_boundary_url_or_path_from_step_1_or_2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B4_Delhi_SR"
+    },
+    "description": "Clip the rescaled Red band to the Delhi boundary."
+  },
+  {
+    "tool": "extract_by_mask",
+    "input": {
+      "in_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_SR_temp",
+      "in_mask_data": "delhi_boundary_url_or_path_from_step_1_or_2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_Delhi_SR"
+    },
+    "description": "Clip the rescaled NIR band to the Delhi boundary."
+  },
+  {
+    "tool": "extract_by_mask",
+    "input": {
+      "in_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B6_SR_temp",
+      "in_mask_data": "delhi_boundary_url_or_path_from_step_1_or_2",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B6_Delhi_SR"
+    },
+    "description": "Clip the rescaled SWIR1 band to the Delhi boundary."
+  },
+  {
+    "tool": "calculate_ndvi",
+    "input": {
+      "nir_band": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_Delhi_SR",
+      "red_band": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B4_Delhi_SR",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/NDVI_Delhi_20250326"
+    },
+    "description": "Calculate NDVI for Delhi using the clipped and rescaled NIR and Red bands."
+  },
+  {
+    "tool": "calculate_savi",
+    "input": {
+      "nir_band": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_Delhi_SR",
+      "red_band": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B4_Delhi_SR",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/SAVI_Delhi_20250326",
+      "soil_factor": 0.5
+    },
+    "description": "Calculate SAVI for Delhi using the clipped and rescaled NIR and Red bands."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_Delhi_SR",
+        "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B4_Delhi_SR",
+        "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B2_Delhi_SR"
+      ],
+      "expression": "2.5 * ((r1 - r2) / (r1 + 6 * r2 - 7.5 * r3 + 1))",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/EVI_Delhi_20250326"
+    },
+    "description": "Calculate EVI for Delhi using clipped and rescaled NIR (r1), Red (r2), and Blue (r3) bands."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B3_Delhi_SR",
+        "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_Delhi_SR"
+      ],
+      "expression": "(r1 - r2) / (r1 + r2)",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/NDWI_McFeeters_Delhi_20250326"
+    },
+    "description": "Calculate NDWI (McFeeters: Green - NIR) for Delhi using clipped and rescaled Green (r1) and NIR (r2) bands."
+  },
+  {
+    "tool": "raster_calculator",
+    "input": {
+      "input_rasters": [
+        "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B6_Delhi_SR",
+        "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_Delhi_SR"
+      ],
+      "expression": "(r1 - r2) / (r1 + r2)",
+      "output_raster": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/NDBI_Delhi_20250326"
+    },
+    "description": "Calculate NDBI for Delhi using clipped and rescaled SWIR1 (r1) and NIR (r2) bands."
+  },
+  {
+    "tool": "delete_features",
+    "input": {
+      "input_features": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B2_SR_temp"
+    },
+    "description": "Delete temporary rescaled Blue band."
+  },
+  {
+    "tool": "delete_features",
+    "input": {
+      "input_features": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B3_SR_temp"
+    },
+    "description": "Delete temporary rescaled Green band."
+  },
+  {
+    "tool": "delete_features",
+    "input": {
+      "input_features": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B4_SR_temp"
+    },
+    "description": "Delete temporary rescaled Red band."
+  },
+  {
+    "tool": "delete_features",
+    "input": {
+      "input_features": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B5_SR_temp"
+    },
+    "description": "Delete temporary rescaled NIR band."
+  },
+  {
+    "tool": "delete_features",
+    "input": {
+      "input_features": "D:/masters_project/ArcGIS_AI/Archer Test/Archer Test.gdb/B6_SR_temp"
+    },
+    "description": "Delete temporary rescaled SWIR1 band."
+  }
+]
+
+--- VERIFICATION PHASE ---
+VERIFICATION RESULT:
+{   
+"detailed_thought": The user wants to generate NDVI, SAVI, EVI, NDWI, and NDBI for Delhi for March 26, 2025.
+Overall Plan Structure:
+1.	Check for existing data (Delhi boundary, Landsat bands) in the local workspace.
+2.	If Delhi boundary is not found locally, search ArcGIS Online.
+3.	Download necessary Landsat bands for the specified date and AOI.
+4.	Rescale the downloaded bands to Surface Reflectance.
+5.	Clip the rescaled bands using the Delhi boundary.
+6.	Calculate the five requested indices.
+7.	Clean up temporary files.
+Verification of Each Step:
+Step 1: scan_workspace_directory_for_gis_files
+•	Tool Validity: scan_workspace_directory_for_gis_files is a valid tool.
+•	Input Parameter Accuracy: workspace parameter is correct.
+•	No Unverified Assumptions: Workspace path is provided. This step correctly attempts to find existing data first.
+•	Logical Sequence: Correct as a first step.
+•	Verdict: OK.
+Step 2: search_arcgis_online_content
+•	Tool Validity: search_arcgis_online_content is a valid tool.
+•	Input Parameter Accuracy: Parameters base_query, title, item_type, snippet, max_results are valid. Using base_query: "" and specifying title and snippet is good practice. item_type: "Feature Service" is appropriate for a boundary.
+•	No Unverified Assumptions: Parameters are specified. The description correctly notes this step might be skipped if data is found in Step 1.
+•	Logical Sequence: Correctly follows the local scan.
+•	Verdict: OK.
+Step 3: download_landsat_tool
+•	Tool Validity: download_landsat_tool is a valid tool.
+•	Input Parameter Accuracy: All parameters (output_directory, start_date, end_date, landsat_sensors, bands, bounding_box, max_cloud_cover, delete_archive) are valid for the tool.
+o	bands: ["B2", "B3", "B4", "B5", "B6"] are Blue, Green, Red, NIR, SWIR1 respectively for Landsat 8/9. These are the necessary bands for the requested indices:
+	EVI: Blue (B2), Red (B4), NIR (B5)
+	NDVI: Red (B4), NIR (B5)
+	SAVI: Red (B4), NIR (B5)
+	NDWI (McFeeters): Green (B3), NIR (B5)
+	NDBI: SWIR1 (B6), NIR (B5)
+o	The bounding_box is stated as an approximation, which is acceptable as the data will be clipped later. The provided coordinates appear reasonable for Delhi.
+•	No Unverified Assumptions: All required parameters are provided.
+•	Logical Sequence: Necessary if data is not locally available.
+•	Verdict: OK.
+Steps 4-8: raster_calculator (Rescaling Bands B2, B3, B4, B5, B6)
+•	Tool Validity: raster_calculator is a valid tool.
+•	Input Parameter Accuracy: input_rasters, expression, output_raster are correct.
+•	No Unverified Assumptions:
+o	input_rasters: Uses placeholders like "path_to_downloaded_B2_to_be_identified_by_executor". This is acceptable as the exact filenames from the download step are not known at planning time but will be in the output_directory specified in Step 3. The description clarifies this.
+o	expression: "(r1 * 0.0000275) - 0.2" is the correct scaling formula for Landsat Collection 2 Level-2 Surface Reflectance products.
+•	Logical Sequence: Rescaling is a crucial pre-processing step for quantitative analysis with Landsat SR data.
+•	Verdict: OK for all five rescaling steps.
+Steps 9-13: extract_by_mask (Clipping Rescaled Bands B2, B3, B4, B5, B6)
+•	Tool Validity: extract_by_mask is a valid tool.
+•	Input Parameter Accuracy: in_raster, in_mask_data, output_raster are correct.
+•	No Unverified Assumptions:
+o	in_raster: Correctly uses the outputs from the rescaling steps (Steps 4-8).
+o	in_mask_data: Uses the placeholder "delhi_boundary_url_or_path_from_step_1_or_2". This correctly instructs the executor to use the boundary data obtained from either the local scan (Step 1) or the ArcGIS Online search (Step 2).
+•	Logical Sequence: Clipping the imagery to the specific Area of Interest (Delhi) is essential.
+•	Verdict: OK for all five clipping steps.
+Step 14: calculate_ndvi
+•	Tool Validity: calculate_ndvi is a valid tool.
+•	Input Parameter Accuracy: nir_band (B5_Delhi_SR), red_band (B4_Delhi_SR), output_raster are correct.
+•	No Unverified Assumptions: Uses the correctly pre-processed (rescaled and clipped) bands.
+•	Logical Sequence: Correct.
+•	Verdict: OK.
+Step 15: calculate_savi
+•	Tool Validity: calculate_savi is a valid tool.
+•	Input Parameter Accuracy: nir_band (B5_Delhi_SR), red_band (B4_Delhi_SR), output_raster, soil_factor (0.5 is a standard value) are correct.
+•	No Unverified Assumptions: Uses correctly pre-processed bands.
+•	Logical Sequence: Correct.
+•	Verdict: OK.
+Step 16: raster_calculator (EVI)
+•	Tool Validity: raster_calculator is a valid tool.
+•	Input Parameter Accuracy: input_rasters (B5_Delhi_SR as r1, B4_Delhi_SR as r2, B2_Delhi_SR as r3), expression, output_raster are correct.
+•	No Unverified Assumptions:
+o	The expression "2.5 * ((r1 - r2) / (r1 + 6 * r2 - 7.5 * r3 + 1))" is the standard EVI formula for Landsat, using NIR (r1), Red (r2), and Blue (r3).
+•	Logical Sequence: Correct.
+•	Verdict: OK.
+Step 17: raster_calculator (NDWI - McFeeters)
+•	Tool Validity: raster_calculator is a valid tool.
+•	Input Parameter Accuracy: input_rasters (B3_Delhi_SR as r1, B5_Delhi_SR as r2), expression, output_raster are correct.
+•	No Unverified Assumptions:
+o	The expression "(r1 - r2) / (r1 + r2)" with Green (r1) and NIR (r2) correctly calculates NDWI (McFeeters).
+•	Logical Sequence: Correct.
+•	Verdict: OK.
+Step 18: raster_calculator (NDBI)
+•	Tool Validity: raster_calculator is a valid tool.
+•	Input Parameter Accuracy: input_rasters (B6_Delhi_SR as r1, B5_Delhi_SR as r2), expression, output_raster are correct.
+•	No Unverified Assumptions:
+o	The expression "(r1 - r2) / (r1 + r2)" with SWIR1 (r1) and NIR (r2) correctly calculates NDBI.
+•	Logical Sequence: Correct.
+•	Verdict: OK.
+Steps 19-23: delete_features (Deleting temporary rescaled bands)
+•	Tool Validity: delete_features is a valid tool.
+•	Input Parameter Accuracy: input_features parameter is correct.
+•	No Unverified Assumptions: The paths refer to the intermediate unclipped rescaled bands created in Steps 4-8. Deleting these is good practice for managing storage.
+•	Logical Sequence: Correct as cleanup steps at the end.
+•	Verdict: OK for all five delete steps.
+General Checks:
+•	File/Field Name Assumptions: The plan appropriately uses placeholders for file names that are outputs of previous steps (e.g., downloaded bands, chosen boundary layer), instructing the executor. This is not an unverified assumption but a way to handle dynamic inputs. No attribute fields are assumed without verification (none are used beyond standard geometry/raster values).
+•	Landsat Rescaling: Correctly identified the need for rescaling and used the appropriate formula for Landsat Collection 2 Level-2 SR.
+•	ArcGIS Online Data: The plan correctly includes steps to first check local availability, then search AGOL, and uses placeholders for the AGOL output URL if applicable. The search query is reasonably constructed.
+•	Completeness: All requested indices are calculated. Necessary pre-processing (download, rescale, clip) is included.
+•	Redundancy: Avoided by checking local workspace first.
+Conclusion: The plan is comprehensive, logically sound, and addresses the user's request. It correctly handles potential data sources (local vs. online), includes necessary pre-processing for Landsat imagery, and uses correct formulas for the indices. The use of placeholders for executor-determined inputs is appropriate for this context. No unverified assumptions about file names or field names are made that would block execution; rather, the plan guides the executor to use outputs from prior steps. No list_fields is needed as the operations primarily involve raster bands and geometry, not specific attribute fields from vector data that would require name verification for selection or calculation. The plan does not assume satellite data already exists; it actively tries to acquire it. The images are being rescaled appropriately. The use of delhi_boundary_url_or_path_from_step_1_or_2 correctly indicates that the mask data can be a local path or a URL from AGOL. The executor is clearly guided on which files to use (e.g., "path_to_downloaded_B2_to_be_identified_by_executor" from the specified download directory). Clipping is performed after rescaling and before index calculation, which is the correct order.”,
+
+"validity": "valid" 
+}

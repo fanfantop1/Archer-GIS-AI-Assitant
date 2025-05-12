@@ -1,0 +1,5 @@
+features services works - feature layer - supports feature analysis
+image services also works - image layer - supports image analysis
+
+
+sreebhadra.r@esri.in

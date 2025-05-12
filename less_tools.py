@@ -114,6 +114,7 @@ def buffer_features(input_features: str, output_features: str, buffer_distance: 
     This tool generates buffer polygons around input points, lines, or polygons. Buffers can be 
     used for proximity analysis, creating protection zones, or visual enhancement of features.
     The buffer distance determines how far from each feature the buffer extends.
+    The dataset need not be in a projected coordinate system for the buffer distance to be set in meters, km, etc.
     
     GIS Concepts:
     - Buffers create new polygon features that represent areas within a specified distance of input features
@@ -310,6 +311,9 @@ def create_feature_class(out_path: str, out_name: str, geometry_type: str, templ
 def add_field(in_table: str, field_name: str, field_type: str, field_length: int = None, 
               field_precision: int = None, field_scale: int = None) -> str:
     """Adds a new field to a feature class or table.
+    Ensure that you give the length, precision, and scale only if the field type requires it.
+    If the field type is TEXT, provide the field_length.
+    If the field type is FLOAT or DOUBLE, provide field_precision and field_scale.
 
     Args:
         in_table: The path to the feature class or table.
@@ -1688,7 +1692,7 @@ def calculate_tpi(dem_raster: str, output_raster: str, neighborhood_size: int = 
     
 @tool
 def search_arcgis_online_content(
-    query: str,
+    base_query: str = "",
     title: Optional[str] = None,
     item_type: Optional[str] = None,
     owner: Optional[str] = None,
@@ -1700,7 +1704,7 @@ def search_arcgis_online_content(
     created_start_date: Optional[str] = None, # YYYY-MM-DD
     created_end_date: Optional[str] = None,   # YYYY-MM-DD
     max_results: int = 20,
-    search_living_atlas_focused: bool = True,
+    search_living_atlas_focused: bool = False,
     search_outside_org: bool = True
 ) -> str:
     """Searches ArcGIS Online/Portal for GIS items using advanced filtering based on the REST API query syntax.
@@ -1713,10 +1717,12 @@ def search_arcgis_online_content(
     Results are sorted by relevance descending by default.
     Suggestions for improving search results:
     - Use specific keywords or phrases in the query (e.g., 'california population density').
-    - Searching using the title and snippet fields often yields the best results if described properly. Try to always use those parameters to narrow down results.
+    - Searching using the title and snippet fields often yields the best results if described properly. Always use title, it can be the same as the base query as well.
+    - Always leave the Base query as an empty string and use the title to serch for specific items.
     - Use tags and typeKeywords to filter results to specific content types or themes.
     - Only use Feature Service, and Image Service item types for the search.
     - Do not modify the max_results parameter unless necessary.
+    - Do not use the owner parameter unless the user is looking for specific content from a specific owner.
     
     GIS Concepts:
     - Content Search: Finding GIS items based on metadata. Uses Lucene query syntax.
@@ -1724,7 +1730,7 @@ def search_arcgis_online_content(
     - Living Atlas Focus: Option to prioritize searching common Living Atlas sources if no specific owner/group/tags are given.
 
     Args:
-        query: The primary keyword search string (e.g., "california population density", "hospitals near main street london"). Can include boolean operators (AND, OR, NOT) and field searches (e.g., 'title:"San Francisco"').
+        base_query: The primary keyword search string (e.g., "california population density", "hospitals near main street london"). Can include boolean operators (AND, OR, NOT) and field searches (e.g., 'title:"San Francisco"').
         title: (Optional) Filter by item title. Exact match using 'title:"value"'.
         item_type: (Optional) Filter by item type (e.g., 'Feature Service', 'Image Service'). Use exact case and quotes: 'type:"Web Map"'.
         owner: (Optional) Filter by the username of the item owner (e.g., 'esri', 'fedmaps_usgs'). Uses 'owner:"value"'.
@@ -1761,7 +1767,7 @@ def search_arcgis_online_content(
         return "Error: Failed to establish connection to ArcGIS. Check Credentials/Network."
 
     # --- Input Validation ---
-    if not isinstance(query, str): # Allow empty query if other filters are used
+    if not isinstance(base_query, str): # Allow empty query if other filters are used
         return "Error: query must be a string."
     if not isinstance(max_results, int) or max_results <= 0:
         return "Error: max_results must be a positive integer."
@@ -1800,12 +1806,12 @@ def search_arcgis_online_content(
 
         # --- Build Query String Dynamically using REST API syntax ---
         query_parts = []
-        if query.strip():
+        if base_query.strip():
              # Wrap base query in parentheses if it contains spaces or operators, to be safe
-             if ' ' in query.strip() or any(op in query for op in [' AND ', ' OR ', ' NOT ']):
-                 query_parts.append(f"({query.strip()})")
+             if ' ' in base_query.strip() or any(op in base_query for op in [' AND ', ' OR ', ' NOT ']):
+                 query_parts.append(f"({base_query.strip()})")
              else:
-                 query_parts.append(query.strip())
+                 query_parts.append(base_query.strip())
 
 
         # Add specific field filters
@@ -1883,9 +1889,9 @@ def search_arcgis_online_content(
         # --- Format Results ---
         if not search_results:
             # Provide more context in the "not found" message
-            filters_used = [p for p in query_parts if p != query.strip()] # Show filters applied
+            filters_used = [p for p in query_parts if p != base_query.strip()] # Show filters applied
             filters_str = f" with filters: [{', '.join(filters_used)}]" if filters_used else ""
-            return f"No items found matching your criteria: '{query}'{filters_str}."
+            return f"No items found matching your criteria: '{base_query}'{filters_str}."
 
         output_results = []
         for item in search_results:
@@ -1926,6 +1932,257 @@ def search_arcgis_online_content(
         return f"An unexpected error occurred during ArcGIS content search: {str(e)}"
 
 
+@tool
+def summary_statistics(
+    in_table: str,
+    out_table: str,
+    statistics_fields: Union[List[List[str]], str],
+    case_field: Optional[Union[str, List[str]]] = None
+) -> str:
+    """Calculates summary statistics for fields in a table or feature class.
+
+    This tool summarizes attribute values from an input table or feature class and writes the results
+    to a new standalone table. It can calculate various statistics like sum, mean, min, max, standard deviation, etc.
+    Optionally, statistics can be calculated for unique cases based on one or more grouping fields (case fields).
+
+    GIS Concepts:
+    - Attribute Tables: Data associated with geographic features or standalone tabular data.
+    - Summary Statistics: Aggregated values (like sum, average) calculated from attribute fields.
+    - Grouping (Case Field): Calculating statistics separately for each unique value or combination of values in specified fields.
+    - Output Table: A new table created to store the calculated summary statistics.
+
+    Args:
+        in_table (str): The path to the input table or feature class containing the fields to summarize.
+                        Must be an existing table or feature class.
+        out_table (str): The path where the output summary statistics table will be saved.
+                         Will be overwritten if it already exists.
+        statistics_fields (Union[List[List[str]], str]): Specifies the statistics to calculate.
+            Can be provided as:
+            1. A list of lists/tuples: e.g., [['Population', 'SUM'], ['Area_KM', 'MEAN']]
+            2. A semicolon-delimited string: e.g., "Population SUM;Area_KM MEAN"
+            Valid statistic types: SUM, MEAN, MIN, MAX, RANGE, STD (Standard Deviation),
+            COUNT, FIRST, LAST, MEDIAN, VARIANCE. Field names must exist in the input table.
+        case_field (Optional[Union[str, List[str]]]): Field(s) used to group statistics (optional).
+            If provided, statistics are calculated for each unique value (or combination of values)
+            in these fields. Can be a single field name or a list of field names.
+            Case fields must exist in the input table. Default is None (no grouping).
+
+    Returns:
+        str: A message indicating success or failure, including the path to the output table or error details.
+
+    Example:
+        >>> # Calculate total population and average area per state
+        >>> summary_statistics(
+        ...     in_table="D:/data/counties.shp",
+        ...     out_table="D:/output/state_summary.dbf",
+        ...     statistics_fields=[['Population', 'SUM'], ['Shape_Area', 'MEAN']],
+        ...     case_field="State_Name"
+        ... )
+        "Successfully calculated summary statistics and saved to D:/output/state_summary.dbf."
+
+        >>> # Calculate overall min and max elevation from a points table
+        >>> summary_statistics(
+        ...     in_table="D:/data/elevation_points.gdb/points",
+        ...     out_table="D:/output/elevation_stats.dbf",
+        ...     statistics_fields="Elevation MIN;Elevation MAX"
+        ... )
+        "Successfully calculated summary statistics and saved to D:/output/elevation_stats.dbf."
+
+    Notes:
+        - The input table/feature class must exist.
+        - Field names used in `statistics_fields` and `case_field` must be valid fields in the input table.
+        - The output table will be overwritten if it exists.
+        - Ensure statistic types are valid (e.g., 'SUM', 'MEAN').
+    """
+    try:
+        # Validate input table existence
+        if not _dataset_exists(in_table):
+            return f"Error: Input table/feature class '{in_table}' does not exist."
+
+        # Validate statistics_fields format and content
+        valid_stat_types = {"SUM", "MEAN", "MIN", "MAX", "RANGE", "STD", "COUNT", "FIRST", "LAST", "MEDIAN", "VARIANCE"}
+        formatted_stats = []
+        if isinstance(statistics_fields, str):
+            # Parse semicolon-delimited string
+            pairs = statistics_fields.split(';')
+            for pair in pairs:
+                parts = pair.strip().split()
+                if len(parts) == 2:
+                    field, stat_type = parts
+                    if not _is_valid_field_name(in_table, field):
+                         return f"Error: Field '{field}' in statistics_fields does not exist in '{in_table}'."
+                    if stat_type.upper() not in valid_stat_types:
+                        return f"Error: Invalid statistic type '{stat_type}'. Valid types are: {', '.join(valid_stat_types)}"
+                    formatted_stats.append([field, stat_type.upper()])
+                else:
+                    return f"Error: Invalid format in statistics_fields string: '{pair}'. Expected 'FieldName StatType'."
+            if not formatted_stats:
+                 return "Error: statistics_fields string is empty or invalid."
+        elif isinstance(statistics_fields, list):
+            # Validate list of lists/tuples
+            if not statistics_fields:
+                 return "Error: statistics_fields list cannot be empty."
+            for item in statistics_fields:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    field, stat_type = item
+                    if not isinstance(field, str) or not isinstance(stat_type, str):
+                         return f"Error: Invalid item format in statistics_fields list: {item}. Both elements must be strings."
+                    if not _is_valid_field_name(in_table, field):
+                         return f"Error: Field '{field}' in statistics_fields does not exist in '{in_table}'."
+                    if stat_type.upper() not in valid_stat_types:
+                        return f"Error: Invalid statistic type '{stat_type}'. Valid types are: {', '.join(valid_stat_types)}"
+                    formatted_stats.append([field, stat_type.upper()])
+                else:
+                    return f"Error: Invalid item format in statistics_fields list: {item}. Expected ['FieldName', 'StatType'] or ('FieldName', 'StatType')."
+        else:
+            return "Error: statistics_fields must be a list of lists/tuples or a semicolon-delimited string."
+
+        # Validate case_field(s) existence if provided
+        formatted_case_fields = []
+        if case_field:
+            if isinstance(case_field, str):
+                if not _is_valid_field_name(in_table, case_field):
+                    return f"Error: Case field '{case_field}' does not exist in '{in_table}'."
+                formatted_case_fields = [case_field]
+            elif isinstance(case_field, list):
+                if not case_field:
+                     return "Error: case_field list cannot be empty if provided."
+                for field in case_field:
+                    if not isinstance(field, str):
+                         return f"Error: Invalid item in case_field list: {field}. All items must be strings."
+                    if not _is_valid_field_name(in_table, field):
+                        return f"Error: Case field '{field}' does not exist in '{in_table}'."
+                    formatted_case_fields.append(field)
+            else:
+                return "Error: case_field must be a string or a list of strings."
+
+        # Execute the Statistics tool
+        arcpy.analysis.Statistics(
+            in_table=in_table,
+            out_table=out_table,
+            statistics_fields=formatted_stats,
+            case_field=formatted_case_fields if formatted_case_fields else None # Pass None if empty list
+        )
+        return f"Successfully calculated summary statistics and saved to '{out_table}'."
+
+    except arcpy.ExecuteError:
+        # Return detailed geoprocessing error messages
+        error_messages = arcpy.GetMessages(2) # 0=info, 1=warning, 2=error
+        return f"ArcPy Error calculating statistics: {error_messages}"
+    except Exception as e:
+        # Catch any other unexpected errors
+        return f"An unexpected error occurred: {str(e)}\n{traceback.format_exc()}"
+
+
+@tool
+def view_attribute_table_rows(
+    in_table: str,
+    num_rows: int = 5,
+    fields: Optional[Union[str, List[str]]] = "*"
+) -> str:
+    """Displays the first N rows of an attribute table for a feature class or standalone table.
+
+    This tool provides a quick preview of the attribute data by fetching and displaying
+    a specified number of rows from the beginning of the table. It helps in understanding
+    the table structure and content without loading the entire dataset.
+
+    GIS Concepts:
+    - Attribute Table: Tabular data associated with geographic features or standalone data.
+    - Search Cursor: An ArcPy data access object used to iterate through rows in a table.
+    - Fields: Columns in the attribute table.
+
+    Args:
+        in_table (str): The path to the input feature class or standalone table.
+                        Must be an existing dataset.
+        num_rows (int): The maximum number of rows to display. Defaults to 5.
+                        Must be a positive integer.
+        fields (Optional[Union[str, List[str]]]): The field(s) to include in the output.
+            Can be a list of field names (e.g., ['FID', 'Name', 'Population']),
+            a comma-separated string (e.g., "FID,Name,Population"), or "*" to include all fields.
+            Defaults to "*". Field names must be valid for the input table.
+
+    Returns:
+        str: A string representation of the first N rows (up to num_rows), including field names
+             and row values, or an error message if the operation fails.
+             Output format is a simple text table.
+
+    Example:
+        >>> view_attribute_table_rows("D:/data/cities.shp", num_rows=3)
+        "Field Names: ['FID', 'Shape', 'Name', 'Population']\\nRow 1: [0, 'Point', 'City A', 10000]\\nRow 2: [1, 'Point', 'City B', 25000]\\nRow 3: [2, 'Point', 'City C', 15000]"
+
+        >>> view_attribute_table_rows("D:/data/parcels.gdb/land_parcels", num_rows=2, fields="ParcelID,Owner")
+        "Field Names: ['ParcelID', 'Owner']\\nRow 1: ['APN001', 'Smith J']\\nRow 2: ['APN002', 'Doe A']"
+
+    Notes:
+        - The input table/feature class must exist.
+        - If `fields` is specified, the field names must exist in the input table.
+        - The number of rows returned might be less than `num_rows` if the table has fewer rows.
+        - Geometry fields might display as their object type (e.g., 'Point', 'Polygon').
+    """
+    try:
+        # Validate input table existence
+        if not _dataset_exists(in_table):
+            return f"Error: Input table/feature class '{in_table}' does not exist."
+
+        # Validate num_rows
+        if not isinstance(num_rows, int) or num_rows <= 0:
+            return f"Error: num_rows must be a positive integer. Got: {num_rows}"
+
+        # Validate and format fields parameter
+        field_list = []
+        all_fields_info = arcpy.ListFields(in_table)
+        all_field_names = [f.name for f in all_fields_info]
+
+        if fields == "*":
+            field_list = all_field_names
+        elif isinstance(fields, str):
+            field_list = [f.strip() for f in fields.split(',')]
+        elif isinstance(fields, list):
+            field_list = fields
+        else:
+            return f"Error: 'fields' parameter must be '*', a comma-separated string, or a list of strings. Got type: {type(fields)}"
+
+        # Check if specified fields exist
+        invalid_fields = [f for f in field_list if f not in all_field_names]
+        if invalid_fields:
+            return f"Error: The following specified fields do not exist in '{in_table}': {', '.join(invalid_fields)}"
+        if not field_list:
+             return f"Error: No valid fields specified or found for '{in_table}'."
+
+
+        # Use SearchCursor to fetch rows
+        output_lines = [f"Field Names: {field_list}"]
+        row_count = 0
+        # Use a try-except block specifically for the SearchCursor
+        try:
+            with arcpy.da.SearchCursor(in_table, field_list) as cursor:
+                for i, row in enumerate(cursor):
+                    if i >= num_rows:
+                        break
+                    # Convert row tuple to list of strings for consistent display
+                    # Handle potential None values gracefully
+                    row_values = [str(val) if val is not None else 'None' for val in row]
+                    output_lines.append(f"Row {i + 1}: {row_values}")
+                    row_count += 1
+        except RuntimeError as e:
+             # Catch potential errors like field not found during cursor creation
+             return f"Error accessing data in '{in_table}': {str(e)}"
+
+
+        if row_count == 0:
+            return f"Table '{in_table}' appears to be empty or no rows matched."
+
+        return "\n".join(output_lines)
+
+    except arcpy.ExecuteError:
+        # General ArcPy errors
+        error_messages = arcpy.GetMessages(2)
+        return f"ArcPy Error viewing table rows: {error_messages}"
+    except Exception as e:
+        # Catch any other unexpected errors
+        return f"An unexpected error occurred: {str(e)}\n{traceback.format_exc()}"
+
+
 # Update __all__ to include the new tools
 __all__ = [
     'add_field','append_features','aspect','buffer_features',
@@ -1936,5 +2193,6 @@ __all__ = [
     'list_fields','merge_features','project_features',
     'raster_calculator','reclassify_raster', 'search_arcgis_online_content',
     'select_features','slope', 'spatial_join',
-    'union_features','zonal_statistics_as_table', 'scan_external_directory_for_gis_files'
+    'union_features','zonal_statistics_as_table', 'scan_external_directory_for_gis_files',
+    'summary_statistics', 'view_attribute_table_rows'
 ]
