@@ -1,5 +1,8 @@
 from langchain.tools import tool
-import arcpy
+try:
+    import arcpy
+except ModuleNotFoundError:
+    import arcpy_stub as arcpy
 import os
 from typing import List, Dict, Any, Union, Optional
 import json
