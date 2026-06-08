@@ -20,6 +20,12 @@ class SettingsManager:
                 "earthdata_user": "",
                 "earthdata_pass": "",
                 "earthdata_token": ""
+            },
+            "model_config": {
+                "provider": "gemini",        # "gemini" or "openai_compatible"
+                "model_name": "",            # custom model name, use built-in defaults if empty
+                "base_url": "",              # API base URL for OpenAI-compatible providers
+                "api_key": ""                # API key for the model provider
             }
         }
         self.settings = self.load_settings()
@@ -54,6 +60,14 @@ class SettingsManager:
                                     self.settings["api_keys"]["earthdata_pass"] = value
                                 elif key == "EARTHDATA_TOKEN" and not self.settings["api_keys"]["earthdata_token"]:
                                     self.settings["api_keys"]["earthdata_token"] = value
+                                elif key == "MODEL_NAME" and not self.settings["model_config"]["model_name"]:
+                                    self.settings["model_config"]["model_name"] = value
+                                elif key == "MODEL_BASE_URL" and not self.settings["model_config"]["base_url"]:
+                                    self.settings["model_config"]["base_url"] = value
+                                elif key == "MODEL_PROVIDER" and not self.settings["model_config"]["provider"]:
+                                    self.settings["model_config"]["provider"] = value
+                                elif key == "MODEL_API_KEY" and not self.settings["model_config"]["api_key"]:
+                                    self.settings["model_config"]["api_key"] = value
                     
                     # Save the loaded API keys
                     self.save_settings()
@@ -70,6 +84,8 @@ class SettingsManager:
                     # Ensure all required keys exist (for backward compatibility)
                     if "api_keys" not in settings:
                         settings["api_keys"] = self.default_settings["api_keys"]
+                    if "model_config" not in settings:
+                        settings["model_config"] = self.default_settings["model_config"]
                     
                     return settings
             except Exception as e:
@@ -131,8 +147,31 @@ class SettingsManager:
     def get_settings_file_location(self):
         """
         Returns the absolute path to the settings file.
-        
+
         Returns:
             str: The absolute path to the settings file
         """
-        return os.path.abspath(self.settings_file) 
+        return os.path.abspath(self.settings_file)
+
+    def get_model_config(self) -> dict:
+        """Get the model configuration.
+
+        Returns:
+            dict with keys: provider, model_name, base_url, api_key
+        """
+        return self.settings.get("model_config", self.default_settings["model_config"])
+
+    def set_model_config(self, provider: str = None, model_name: str = None,
+                         base_url: str = None, api_key: str = None):
+        """Set model configuration fields."""
+        if "model_config" not in self.settings:
+            self.settings["model_config"] = self.default_settings["model_config"].copy()
+        if provider is not None:
+            self.settings["model_config"]["provider"] = provider
+        if model_name is not None:
+            self.settings["model_config"]["model_name"] = model_name
+        if base_url is not None:
+            self.settings["model_config"]["base_url"] = base_url
+        if api_key is not None:
+            self.settings["model_config"]["api_key"] = api_key
+        self.save_settings() 

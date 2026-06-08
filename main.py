@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
@@ -13,7 +14,10 @@ import tkinter as tk
 from tkinter import scrolledtext, filedialog, ttk
 import time
 import inspect
-import arcpy
+try:
+    import arcpy
+except ModuleNotFoundError:
+    import arcpy_stub as arcpy
 import traceback
 import io  # Import io module
 import contextlib # Import contextlib
@@ -626,10 +630,23 @@ class GISAgent:
         self.api_key = api_key
         self.workspace = workspace
         self.settings_manager = settings_manager
-        self.model = "gemini-2.0-pro-exp-02-05"
-        self.model_small = "gemini-2.0-flash-exp"
         self.response_queue = response_queue
         self._environment_info = {}  # Cache for environment info
+
+        # --- Model configuration ---
+        model_config = self.settings_manager.get_model_config()
+        self.model_provider = model_config.get("provider", "gemini")
+        self.model_custom = model_config.get("model_name", "")       # user-specified model name
+        self.model_base_url = model_config.get("base_url", "")       # custom API endpoint
+        self.model_api_key = model_config.get("api_key", "") or api_key  # use gemini key as fallback
+
+        # Default model names (used when model_custom is empty)
+        if self.model_provider == "openai_compatible":
+            self.model = self.model_custom or "deepseek-chat"
+            self.model_small = self.model_custom or "deepseek-chat"  # same model for executor
+        else:
+            self.model = self.model_custom or "gemini-2.0-pro-exp-02-05"
+            self.model_small = self.model_custom or "gemini-2.0-flash-exp"
 
         # Set environment variables for tools that need them
         os.environ["EARTHDATA_USER"] = self.settings_manager.get_api_key("earthdata_user")
@@ -671,11 +688,39 @@ class GISAgent:
         self.verifier = self._create_verifier()
         self.executor = self._create_executor()
     
+    def _create_llm(self, model_name: str, temperature: float = 0.0, timeout: int = 300, max_retries: int = 3):
+        """Factory method: create LLM instance based on configured provider.
+
+        Args:
+            model_name: The model name to use
+            temperature: Sampling temperature
+            timeout: Request timeout in seconds
+            max_retries: Max retry attempts
+
+        Returns:
+            A LangChain chat model instance (ChatGoogleGenerativeAI or ChatOpenAI)
+        """
+        if self.model_provider == "openai_compatible" and self.model_base_url:
+            # Use OpenAI-compatible API (DeepSeek, Ollama, vLLM, etc.)
+            return ChatOpenAI(
+                model=model_name,
+                api_key=self.model_api_key,
+                base_url=self.model_base_url,
+                temperature=temperature,
+                timeout=timeout,
+                max_retries=max_retries,
+            )
+        else:
+            # Default: Google Gemini
+            return ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=self.model_api_key,
+                temperature=temperature,
+                timeout=timeout,
+            )
+
     def _create_planner(self):
-        llm = ChatGoogleGenerativeAI(model=self.model, 
-                                    google_api_key=self.api_key,
-                                    temperature=0.0,
-                                    timeout=300)
+        llm = self._create_llm(self.model, temperature=0.0, timeout=300)
         
         memory = ConversationBufferMemory(memory_key="chat_history",
                                         return_messages=True,
@@ -695,18 +740,14 @@ class GISAgent:
 
     
     def _create_verifier(self):
-        return ChatGoogleGenerativeAI(model=self.model,
-                                    google_api_key=self.api_key,
-                                    temperature=0.0,
-                                    timeout=300)
-    
+        return self._create_llm(self.model, temperature=0.0, timeout=300)
+
     def _create_executor(self):
-        llm = ChatGoogleGenerativeAI(
-            model=self.model_small,
-            google_api_key=self.api_key,
+        llm = self._create_llm(
+            self.model_small,
             temperature=0.05,  # Slightly increased temperature to encourage exploration
+            timeout=600,       # Increased timeout for longer operations
             max_retries=15,
-            timeout=600  # Increased timeout for longer operations
         )
         
         # Add memory for executor with a more specific configuration
@@ -745,9 +786,35 @@ class GISAgent:
         """Extract and validate the plan JSON from the planner's output."""
         try:
             print("\n=== Plan Extraction ===")
-            # Get the plan text and clean it
-            plan = plan_result['output'].strip()
-            print(f"Raw plan text: {plan}")
+            # Log full response for debugging
+            print(f"DEBUG plan_result keys: {plan_result.keys()}")
+            print(f"DEBUG full plan_result: {json.dumps(plan_result, indent=2, default=str)[:2000]}")
+
+            # Get the plan text - handle different response formats
+            plan = plan_result.get('output', '').strip()
+
+            # If output is empty, try intermediate_steps
+            if not plan and 'intermediate_steps' in plan_result:
+                steps = plan_result['intermediate_steps']
+                if steps:
+                    # Get the last agent message
+                    for step in reversed(steps):
+                        if hasattr(step, 'log') and step.log:
+                            plan = step.log.strip()
+                            break
+                        if isinstance(step, tuple) and len(step) > 0:
+                            msg = step[0]
+                            if hasattr(msg, 'content') and msg.content:
+                                plan = str(msg.content).strip()
+                                break
+                print(f"Extracted plan from intermediate_steps: {plan[:500]}")
+
+            # Still empty - could be an AIMessage directly
+            if not plan:
+                print(f"ERROR: Empty plan output! Raw plan_result: {str(plan_result)[:1000]}")
+                raise ValueError("Planner returned empty output. The model may not support this prompt format.")
+
+            print(f"Raw plan text (first 500 chars): {plan[:500]}")
             
             # Use our dedicated function to clean the JSON string
             plan = clean_json_string(plan)
@@ -914,19 +981,35 @@ class GISAgent:
                 # Send planning input to detailed output
                 self.response_queue.put(f"Planning Input:\n{json.dumps(planning_input, indent=2)}\n")
                 
+                plan_result = {}  # Initialize for except block access
                 try:
                     plan_result = self.planner.invoke(planning_input)
+                    # Push raw planner response to detail area for debugging
+                    self.response_queue.put(
+                        f"Raw Planner Response:\n{json.dumps(plan_result, indent=2, default=str)[:3000]}\n"
+                    )
                     plan = self._extract_plan(plan_result)
-                    
+
                     # Send plan to detailed output
                     self.response_queue.put(f"Generated Plan:\n{json.dumps(json.loads(plan), indent=2)}\n")
-                    
+
                 except ValueError as e:
-                    error_msg = f"Planning Error: {str(e)}"
-                    print(error_msg)
-                    self.response_queue.put(f"❌ {error_msg}\n")
-                    self.response_queue.put(f"Archer:\n{error_msg}")
-                    return ""
+                    error_msg = str(e)
+
+                    # Check if this was a natural-language response (greeting, question, etc.)
+                    # rather than a JSON parse failure on a real plan
+                    raw_output = plan_result.get('output', '').strip()
+                    if raw_output and 'JSON' in error_msg:
+                        # Planner returned plain text instead of JSON → treat as direct response
+                        print(f"Planner returned direct response (not a plan): {raw_output[:200]}")
+                        self.response_queue.put(f"Archer:\n{raw_output}")
+                        return raw_output
+                    else:
+                        error_msg_full = f"Planning Error: {error_msg}"
+                        print(error_msg_full)
+                        self.response_queue.put(f"❌ {error_msg_full}\n")
+                        self.response_queue.put(f"Archer:\n{error_msg_full}")
+                        return ""
                 
                 time.sleep(2)  # Brief pause before verification
 
@@ -1486,6 +1569,57 @@ class GISGUI:
         notebook = ttk.Notebook(self.env_frame)
         notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
+        # === Model Configuration tab ===
+        model_frame = ttk.Frame(notebook, padding="10")
+        notebook.add(model_frame, text="Model")
+
+        # Initialize model config vars
+        model_config = self.settings_manager.get_model_config()
+
+        # Provider selector
+        ttk.Label(model_frame, text="Provider:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.model_provider_var = tk.StringVar(value=model_config.get("provider", "gemini"))
+        provider_combo = ttk.Combobox(model_frame, textvariable=self.model_provider_var,
+                                      values=["gemini", "openai_compatible"], state="readonly", width=47)
+        provider_combo.grid(row=0, column=1, sticky=tk.W, pady=5, padx=5)
+        ttk.Label(model_frame, text="gemini=Google Gemini | openai_compatible=DeepSeek/Ollama/vLLM",
+                  font=("Segoe UI", 8)).grid(row=0, column=2, sticky=tk.W, pady=5)
+
+        # Base URL
+        ttk.Label(model_frame, text="API Base URL:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.model_base_url_var = tk.StringVar(value=model_config.get("base_url", ""))
+        base_url_entry = ttk.Entry(model_frame, textvariable=self.model_base_url_var, width=50)
+        base_url_entry.grid(row=1, column=1, sticky=tk.W, pady=5, padx=5)
+        ttk.Label(model_frame, text="e.g. https://api.deepseek.com",
+                  font=("Segoe UI", 8)).grid(row=1, column=2, sticky=tk.W, pady=5)
+
+        # Model name
+        ttk.Label(model_frame, text="Model Name:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        self.model_name_var = tk.StringVar(value=model_config.get("model_name", ""))
+        model_name_entry = ttk.Entry(model_frame, textvariable=self.model_name_var, width=50)
+        model_name_entry.grid(row=2, column=1, sticky=tk.W, pady=5, padx=5)
+        ttk.Label(model_frame, text="e.g. deepseek-chat, gpt-4o, llama3",
+                  font=("Segoe UI", 8)).grid(row=2, column=2, sticky=tk.W, pady=5)
+
+        # Model API key
+        ttk.Label(model_frame, text="API Key:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        self.model_api_key_var = tk.StringVar(value=model_config.get("api_key", ""))
+        model_key_entry = ttk.Entry(model_frame, textvariable=self.model_api_key_var, width=50, show="*")
+        model_key_entry.grid(row=3, column=1, sticky=tk.W, pady=5, padx=5)
+        show_model_key = tk.BooleanVar(value=False)
+        ttk.Checkbutton(model_frame, text="Show", variable=show_model_key,
+                        command=lambda: self.toggle_key_visibility(model_key_entry, show_model_key)
+                        ).grid(row=3, column=2, sticky=tk.W, pady=5)
+
+        # Current status display
+        ttk.Label(model_frame, text="Current:").grid(row=4, column=0, sticky=tk.W, pady=5)
+        self.model_status_var = tk.StringVar(value=self._format_model_status(model_config))
+        ttk.Label(model_frame, textvariable=self.model_status_var, foreground="gray",
+                  font=("Segoe UI", 9)).grid(row=4, column=1, sticky=tk.W, pady=5, padx=5)
+
+        # Save & Apply button
+        ttk.Button(model_frame, text="Save & Apply", command=self.save_model_config).grid(row=5, column=1, sticky=tk.W, pady=10)
+
         # API Keys section
         api_frame = ttk.Frame(notebook, padding="10")
         notebook.add(api_frame, text="API Keys")
@@ -2219,6 +2353,73 @@ class GISGUI:
             entry_widget.config(show="")
         else:
             entry_widget.config(show="*")
+
+    def _format_model_status(self, model_config):
+        """Format model config as a human-readable status string."""
+        provider = model_config.get("provider", "gemini")
+        name = model_config.get("model_name", "")
+        url = model_config.get("base_url", "")
+        if provider == "openai_compatible" and url:
+            return f"{provider} → {url}"
+        elif name:
+            return f"{provider}: {name}"
+        else:
+            return f"{provider} (built-in defaults)"
+
+    def save_model_config(self):
+        """Save model configuration and reinitialize LLM connections."""
+        try:
+            provider = self.model_provider_var.get()
+            base_url = self.model_base_url_var.get().strip().rstrip("/")
+            model_name = self.model_name_var.get().strip()
+            api_key = self.model_api_key_var.get().strip()
+
+            # Persist to settings
+            self.settings_manager.set_model_config(
+                provider=provider,
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+            )
+
+            # Update agent's model config in-place
+            self.gis_agent.model_provider = provider
+            self.gis_agent.model_custom = model_name
+            self.gis_agent.model_base_url = base_url
+            self.gis_agent.model_api_key = api_key or self.gis_agent.api_key
+
+            # Recompute default model names
+            if provider == "openai_compatible":
+                self.gis_agent.model = model_name or "deepseek-chat"
+                self.gis_agent.model_small = model_name or "deepseek-chat"
+            else:
+                self.gis_agent.model = model_name or "gemini-2.0-pro-exp-02-05"
+                self.gis_agent.model_small = model_name or "gemini-2.0-flash-exp"
+
+            # Recreate agents with new model config
+            self.gis_agent.planner = self.gis_agent._create_planner()
+            self.gis_agent.verifier = self.gis_agent._create_verifier()
+            self.gis_agent.executor = self.gis_agent._create_executor()
+
+            # Update status display
+            current_config = {
+                "provider": provider,
+                "model_name": model_name,
+                "base_url": base_url,
+                "api_key": api_key,
+            }
+            self.model_status_var.set(self._format_model_status(current_config))
+
+            self.update_response_area(
+                f"Model config saved: {self._format_model_status(current_config)}",
+                "chat", "info"
+            )
+            tk.messagebox.showinfo("Model Updated", "Model configuration saved and applied.")
+
+        except Exception as e:
+            error_msg = f"Error saving model config: {str(e)}"
+            self.update_response_area(error_msg, "chat", "error")
+            tk.messagebox.showerror("Error", error_msg)
 
 def clean_json_string(json_str):
     """

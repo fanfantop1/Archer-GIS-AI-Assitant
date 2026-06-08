@@ -1,4 +1,7 @@
-import arcpy
+try:
+    import arcpy
+except ModuleNotFoundError:
+    import arcpy_stub as arcpy
 import sys
 import os
 import time

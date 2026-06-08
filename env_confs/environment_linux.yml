@@ -1,0 +1,152 @@
+name: arcgis_llm_linux
+channels:
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge
+  - nodefaults
+dependencies:
+  # ===== Only C-heavy packages that benefit from conda =====
+  - python=3.11
+  - pip
+  - setuptools
+  - wheel
+
+  # GIS stack (complex C deps: GDAL, PROJ, GEOS)
+  - geopandas
+  - rasterio
+  - fiona
+  - gdal
+  - netcdf4
+  - pyogrio
+  - rtree
+
+  # Scientific stack (BLAS/LAPACK optimized builds)
+  - numpy
+  - scipy
+  - scikit-learn
+  - statsmodels
+  - matplotlib
+  - h5py
+  - numexpr
+  - bottleneck
+
+  # Cryptography (C extensions)
+  - cryptography
+
+  # Database
+  - sqlalchemy
+
+  # YAML parser (C extension)
+  - pyyaml
+
+  # ===== Everything else installed via pip (fast, aliyun mirror) =====
+  - pip:
+      # --- LangChain ecosystem ---
+      - langchain==0.3.19
+      - langchain-community==0.3.18
+      - langchain-core==0.3.40
+      - langchain-text-splitters==0.3.6
+      - langchain-google-genai==2.0.11
+      - langchain-nomic==0.1.4
+      - langgraph==0.2.69
+      - langgraph-checkpoint==2.0.10
+      - langgraph-sdk==0.1.51
+      - langsmith==0.3.1
+
+      # --- Google AI / Gemini ---
+      - google-generativeai>=0.8.4
+      - google-ai-generativelanguage>=0.6.16
+      - google-api-core==2.24.0
+      - google-api-python-client==2.159.0
+      - google-auth==2.38.0
+      - google-auth-httplib2==0.2.0
+      - googleapis-common-protos==1.66.0
+      - grpcio==1.70.0
+      - grpcio-status==1.70.0
+      - httplib2==0.22.0
+      - proto-plus==1.25.0
+      - protobuf==5.29.3
+      - pyasn1==0.6.1
+      - pyasn1-modules==0.4.1
+      - rsa==4.9
+
+      # --- OpenAI ---
+      - openai==1.60.1
+
+      # --- Pydantic ---
+      - pydantic==2.10.6
+      - pydantic-core==2.27.2
+      - pydantic-settings==2.7.1
+
+      # --- HTTP & Network ---
+      - aiohttp==3.11.11
+      - aiofiles==24.1.0
+      - aiohappyeyeballs==2.4.4
+      - aiosignal==1.3.2
+      - frozenlist==1.5.0
+      - multidict==6.1.0
+      - propcache==0.2.1
+      - yarl==1.18.3
+      - httpx-sse==0.4.0
+      - httpx>=0.27.0
+      - filetype==1.2.0
+      - requests>=2.31.0
+      - requests-toolbelt>=1.0.0
+
+      # --- ArcGIS API for Python ---
+      - arcgis>=2.4.0
+
+      # --- Landsat ---
+      - landsatxplore==0.15.0
+
+      # --- Jupyter ---
+      - jupyterlab>=4.0
+      - ipykernel>=6.0
+      - nbformat>=5.0
+      - nbconvert>=7.0
+
+      # --- Data & I/O ---
+      - pandas>=2.0
+      - openpyxl>=3.1
+      - xlrd>=2.0
+      - lxml>=5.0
+      - beautifulsoup4>=4.12
+      - pypdf>=4.0
+      - pillow>=10.0
+      - seaborn>=0.13
+
+      # --- Dev & CLI ---
+      - black>=23.0
+      - flake8>=7.0
+      - pytest>=7.0
+      - tqdm>=4.0
+      - click>=8.0
+      - python-dotenv>=1.0
+
+      # --- Misc ---
+      - jsonpatch==1.33
+      - jsonpointer==3.0.0
+      - markdown-it-py==3.0.0
+      - mdurl==0.1.2
+      - more-itertools==10.6.0
+      - msgpack==1.1.0
+      - pyarrow==19.0.0
+      - tenacity==9.0.0
+      - typing-extensions==4.12.2
+      - tzdata==2025.1
+      - uritemplate==4.1.1
+      - zstandard==0.23.0
+      - jaraco-classes==3.3.1
+      - puremagic==1.15
+      - nest-asyncio>=1.0
+      - psutil>=5.0
+      - joblib>=1.0
+      - cloudpickle>=3.0
+      - dask>=2023.0
+      - distributed>=2023.0
+      - folium>=0.19
+      - pyshp>=2.0
+      - mapclassify>=2.0
+      - colorama>=0.4
+      - jinja2>=3.0
+      - dill>=0.3.0
+      - xarray>=2023.0
